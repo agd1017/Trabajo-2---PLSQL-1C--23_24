@@ -180,36 +180,64 @@ exec inicializa_test;
 -- Completa el test
 
 create or replace procedure test_reserva_evento is
+    v_test_date date := to_date('2024-06-28', 'YYYY-MM-DD');
 begin
-	 
-  --caso 1 Reserva correcta, se realiza
-  begin
-    inicializa_test;
-  end;
-  
-  
-  --caso 2 Evento pasado
-  begin
-    inicializa_test;
-  end;
-  
-  --caso 3 Evento inexistente
-  begin
-    inicializa_test;
-  end;
-  
+    -- Caso 1: Reserva correcta, se realiza
+    begin
+        inicializa_test;
+        reservar_evento('12345678A', 'concierto_la_moda', v_test_date);
+        dbms_output.put_line('Test 1 pasado: Reserva realizada correctamente.');
+    exception when others then
+        dbms_output.put_line('Test 1 fallido: ' || SQLERRM);
+    end;
 
-  --caso 4 Cliente inexistente  
-  begin
-    inicializa_test;
-  end;
-  
-  --caso 5 El cliente no tiene saldo suficiente
-  begin
-    inicializa_test;
-  end;
+    -- Caso 2: Evento pasado
+    begin
+        inicializa_test;
+        reservar_evento('12345678A', 'teatro_impro', v_test_date);
+    exception when others then
+        if SQLCODE = -20001 then
+            dbms_output.put_line('Test 2 pasado: Error correcto al reservar evento pasado.');
+        else
+            dbms_output.put_line('Test 2 fallido: ' || SQLERRM);
+        end if;
+    end;
 
-  
+    -- Caso 3: Evento inexistente
+    begin
+        inicializa_test;
+        reservar_evento('12345678A', 'evento_fantasma', v_test_date);
+    exception when others then
+        if SQLCODE = -20003 then
+            dbms_output.put_line('Test 3 pasado: Error correcto al reservar evento inexistente.');
+        else
+            dbms_output.put_line('Test 3 fallido: ' || SQLERRM);
+        end if;
+    end;
+
+    -- Caso 4: Cliente inexistente
+    begin
+        inicializa_test;
+        reservar_evento('99999999X', 'concierto_la_moda', v_test_date);
+    exception when others then
+        if SQLCODE = -20002 then
+            dbms_output.put_line('Test 4 pasado: Error correcto al reservar con cliente inexistente.');
+        else
+            dbms_output.put_line('Test 4 fallido: ' || SQLERRM);
+        end if;
+    end;
+
+    -- Caso 5: El cliente no tiene saldo suficiente
+    begin
+        inicializa_test;
+        reservar_evento('11111111B', 'concierto_la_moda', v_test_date);
+    exception when others then
+        if SQLCODE = -20004 then
+            dbms_output.put_line('Test 5 pasado: Error correcto al reservar sin saldo suficiente.');
+        else
+            dbms_output.put_line('Test 5 fallido: ' || SQLERRM);
+        end if;
+    end;
 end;
 /
 
