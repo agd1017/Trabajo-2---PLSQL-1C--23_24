@@ -47,13 +47,72 @@ create table reservas(
 
 
 	
--- Procedimiento a implementar para realizar la reserva
-create or replace procedure reservar_evento( arg_NIF_cliente varchar,
- arg_nombre_evento varchar, arg_fecha date) is
- begin
-  null;
+create or replace procedure reservar_evento(
+    arg_NIF_cliente varchar,
+    arg_nombre_evento varchar,
+    arg_fecha date
+) is
+    v_id_abono abonos.id_abono%type;
+    v_saldo abonos.saldo%type;
+    v_id_evento eventos.id_evento%type;
+    v_asientos eventos.asientos_disponibles%type;
+    v_fecha_evento eventos.fecha%type;
+    v_fecha_evento1 date := to_date(v_fecha_evento, 'YYYY-MM-DD');
+
+    v_fecha_actual date := to_date('2024-04-08', 'YYYY-MM-DD');
+begin
+    dbms_output.put_line('Verificando cliente...');
+    begin
+        select id_abono, saldo into v_id_abono, v_saldo
+        from abonos
+        where cliente = arg_NIF_cliente
+        for update;
+    exception
+        when no_data_found then
+            dbms_output.put_line('Error: Cliente no encontrado.');
+            raise_application_error(-20002, 'Cliente inexistente');
+    end;
+
+    dbms_output.put_line('Verificando evento...');
+    begin
+        select id_evento, asientos_disponibles, fecha into v_id_evento, v_asientos, v_fecha_evento
+        from eventos
+        where nombre_evento = arg_nombre_evento
+        for update;
+    exception
+        when no_data_found then
+            dbms_output.put_line('Error: Evento no encontrado.');
+            raise_application_error(-20003, 'El evento ' || arg_nombre_evento || ' no existe');
+    end;
+
+    if v_saldo <= 0 then
+        raise_application_error(-20004, 'Saldo en abono insuficiente');
+    end if;
+dbms_output.put_line(v_fecha_evento);
+dbms_output.put_line(v_fecha_actual);
+    if v_fecha_evento1 < v_fecha_actual then
+        raise_application_error(-20001, 'No se pueden reservar eventos pasados.');
+    elsif v_asientos <= 0 then
+        raise_application_error(-20005, 'No hay asientos disponibles para este evento');
+    end if;
+
+    dbms_output.put_line('Realizando reserva...');
+    update abonos set saldo = saldo - 1 where id_abono = v_id_abono;
+    update eventos set asientos_disponibles = asientos_disponibles - 1 where id_evento = v_id_evento;
+
+    insert into reservas (id_reserva, cliente, evento, abono, fecha)
+    values (seq_reservas.nextval, arg_NIF_cliente, v_id_evento, v_id_abono, arg_fecha);
+
+    commit;
+    dbms_output.put_line('Reserva realizada con éxito.');
+
+exception
+    when others then
+        dbms_output.put_line('Error inesperado: ' || SQLERRM);
 end;
 /
+
+
 
 ------ Deja aquí tus respuestas a las preguntas del enunciado:
 -- * P4.1
@@ -153,6 +212,7 @@ begin
   
 end;
 /
+
 
 
 set serveroutput on;
