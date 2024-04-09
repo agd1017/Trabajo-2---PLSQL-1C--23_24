@@ -7,7 +7,6 @@ drop sequence seq_abonos;
 drop sequence seq_eventos;
 drop sequence seq_reservas;
 
-
 -- Creación de tablas y secuencias
 
 create table clientes(
@@ -16,7 +15,6 @@ create table clientes(
 	ape1	varchar(20) not null,
 	ape2	varchar(20) not null
 );
-
 
 create sequence seq_abonos;
 
@@ -44,24 +42,20 @@ create table reservas(
 	abono       integer references abonos,
 	fecha	date not null
 );
-
-
 	
+-- Procedimiento a implementar para realizar la reserva
+
 create or replace procedure reservar_evento(
     arg_NIF_cliente varchar,
     arg_nombre_evento varchar,
-    arg_fecha date
+    arg_fecha date -- Me la voy a tomar con current date 
 ) is
     v_id_abono abonos.id_abono%type;
     v_saldo abonos.saldo%type;
     v_id_evento eventos.id_evento%type;
     v_asientos eventos.asientos_disponibles%type;
     v_fecha_evento eventos.fecha%type;
-    v_fecha_evento1 date := to_date(v_fecha_evento, 'YYYY-MM-DD');
-
-    v_fecha_actual date := to_date('2024-04-08', 'YYYY-MM-DD');
 begin
-    dbms_output.put_line('Verificando cliente...');
     begin
         select id_abono, saldo into v_id_abono, v_saldo
         from abonos
@@ -69,34 +63,34 @@ begin
         for update;
     exception
         when no_data_found then
-            dbms_output.put_line('Error: Cliente no encontrado.');
+            rollback;
             raise_application_error(-20002, 'Cliente inexistente');
     end;
 
-    dbms_output.put_line('Verificando evento...');
     begin
         select id_evento, asientos_disponibles, fecha into v_id_evento, v_asientos, v_fecha_evento
         from eventos
-        where nombre_evento = arg_nombre_evento
+        where nombre_evento = arg_nombre_evento -- and fecha = arg_fecha
         for update;
     exception
         when no_data_found then
-            dbms_output.put_line('Error: Evento no encontrado.');
+            rollback;
             raise_application_error(-20003, 'El evento ' || arg_nombre_evento || ' no existe');
     end;
 
     if v_saldo <= 0 then
+        rollback;
         raise_application_error(-20004, 'Saldo en abono insuficiente');
     end if;
-dbms_output.put_line(v_fecha_evento);
-dbms_output.put_line(v_fecha_actual);
-    if v_fecha_evento1 < v_fecha_actual then
+
+    if v_fecha_evento < arg_fecha then
+        rollback;
         raise_application_error(-20001, 'No se pueden reservar eventos pasados.');
     elsif v_asientos <= 0 then
+        rollback;
         raise_application_error(-20005, 'No hay asientos disponibles para este evento');
     end if;
 
-    dbms_output.put_line('Realizando reserva...');
     update abonos set saldo = saldo - 1 where id_abono = v_id_abono;
     update eventos set asientos_disponibles = asientos_disponibles - 1 where id_evento = v_id_evento;
 
@@ -104,20 +98,13 @@ dbms_output.put_line(v_fecha_actual);
     values (seq_reservas.nextval, arg_NIF_cliente, v_id_evento, v_id_abono, arg_fecha);
 
     commit;
-    dbms_output.put_line('Reserva realizada con éxito.');
-
-exception
-    when others then
-        dbms_output.put_line('Error inesperado: ' || SQLERRM);
 end;
 /
 
-
-
 ------ Deja aquí tus respuestas a las preguntas del enunciado:
--- * P4.1
+-- * P4.1 
 --
--- * P4.2
+-- * P4.2 
 --
 -- * P4.3
 --
@@ -125,7 +112,6 @@ end;
 --
 -- * P4.5
 -- 
-
 
 create or replace
 procedure reset_seq( p_seq_name varchar )
@@ -146,7 +132,6 @@ begin
 
 end;
 /
-
 
 create or replace procedure inicializa_test is
 begin
@@ -180,22 +165,23 @@ exec inicializa_test;
 -- Completa el test
 
 create or replace procedure test_reserva_evento is
-    v_test_date date := to_date('2024-06-28', 'YYYY-MM-DD');
 begin
     -- Caso 1: Reserva correcta, se realiza
     begin
         inicializa_test;
-        reservar_evento('12345678A', 'concierto_la_moda', v_test_date);
+        reservar_evento('12345678A', 'concierto_la_moda', '08/04/2024');
         dbms_output.put_line('Test 1 pasado: Reserva realizada correctamente.');
-    exception when others then
+    exception 
+      when others then
         dbms_output.put_line('Test 1 fallido: ' || SQLERRM);
     end;
 
     -- Caso 2: Evento pasado
     begin
         inicializa_test;
-        reservar_evento('12345678A', 'teatro_impro', v_test_date);
-    exception when others then
+        reservar_evento('12345678A', 'concierto_la_moda', '22/03/2025');
+    exception 
+      when others then
         if SQLCODE = -20001 then
             dbms_output.put_line('Test 2 pasado: Error correcto al reservar evento pasado.');
         else
@@ -206,8 +192,9 @@ begin
     -- Caso 3: Evento inexistente
     begin
         inicializa_test;
-        reservar_evento('12345678A', 'evento_fantasma', v_test_date);
-    exception when others then
+        reservar_evento('12345678A', 'evento_fantasma', '08/04/2024');
+    exception 
+      when others then
         if SQLCODE = -20003 then
             dbms_output.put_line('Test 3 pasado: Error correcto al reservar evento inexistente.');
         else
@@ -218,8 +205,9 @@ begin
     -- Caso 4: Cliente inexistente
     begin
         inicializa_test;
-        reservar_evento('99999999X', 'concierto_la_moda', v_test_date);
-    exception when others then
+        reservar_evento('99999999X', 'concierto_la_moda', '08/04/2024');
+    exception 
+      when others then
         if SQLCODE = -20002 then
             dbms_output.put_line('Test 4 pasado: Error correcto al reservar con cliente inexistente.');
         else
@@ -230,8 +218,9 @@ begin
     -- Caso 5: El cliente no tiene saldo suficiente
     begin
         inicializa_test;
-        reservar_evento('11111111B', 'concierto_la_moda', v_test_date);
-    exception when others then
+        reservar_evento('11111111B', 'concierto_la_moda', '08/04/2024');
+    exception 
+      when others then
         if SQLCODE = -20004 then
             dbms_output.put_line('Test 5 pasado: Error correcto al reservar sin saldo suficiente.');
         else
@@ -240,8 +229,6 @@ begin
     end;
 end;
 /
-
-
 
 set serveroutput on;
 exec test_reserva_evento;
