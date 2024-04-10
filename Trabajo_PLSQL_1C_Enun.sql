@@ -57,43 +57,39 @@ create or replace procedure reservar_evento(
     v_fecha_evento eventos.fecha%type;
 begin
     begin
-        -- Extraemos el id abono y el saldo de este del ciente que ha realizado 
-        -- la reserva y bloqueamos la fila.
+        -- Extraemos el id abono, el saldo del ciente que ha realizado la reserva y bloqueamos la fila.
         select id_abono, saldo into v_id_abono, v_saldo
         from abonos
         where cliente = arg_NIF_cliente
         for update;
     exception
-        -- Capturamos una exepcion si no existe el cliente
+        -- Capturamos una excepción si no existe el cliente
         when no_data_found then
-            -- Los rollback que se ejecutan junto a las ecepciones liberan las 
-            -- filas bloqueadas            
+            -- Los rollback que se ejecutan junto a las excepciones liberan las filas bloqueadas            
             rollback;
             raise_application_error(-20002, 'Cliente inexistente');
     end;
 
     begin
-        -- Extraemos el id evento, los asientos disponibles y la fecha del evento
-        -- y bloqueamos la fila
+        -- Extraemos el id evento, los asientos disponibles, la fecha del evento y bloqueamos la fila
         select id_evento, asientos_disponibles, fecha into v_id_evento, v_asientos, v_fecha_evento
         from eventos
         where nombre_evento = arg_nombre_evento 
         for update;
     exception
-        -- Capturamos una exepcion si no existe el evento
+        -- Capturamos una excepción si no existe el evento
         when no_data_found then
             rollback;
             raise_application_error(-20003, 'El evento ' || arg_nombre_evento || ' no existe');
     end;
 
-    -- Comprobamos si el cliente tiene saldo en el abono en caso negativo lanzamos un error
+    -- Comprobamos si el cliente tiene saldo en el abono, en caso negativo lanzamos un error
     if v_saldo <= 0 then
         rollback;
         raise_application_error(-20004, 'Saldo en abono insuficiente');
     end if;
     
-    -- Comprobamos si la reserva se ha relizado antes de que tome lugar el evento,
-    -- si es asi comprobamos si hay asientos disponibles.
+    -- Comprobamos si la reserva se ha relizado antes de que tome lugar el evento, si es asi comprobamos si hay asientos disponibles.
     -- En caso de que cualquiera de los dos falle se lanza un error
     if v_fecha_evento < arg_fecha then
         rollback;
@@ -103,15 +99,15 @@ begin
         raise_application_error(-20005, 'No hay asientos disponibles para este evento');
     end if;
     
-    -- Decrementamos uno al saldo del abono del cliente y a los asientos del evento
+    -- Decrementamos en una unidad el saldo del abono del cliente y los asientos del evento
     update abonos set saldo = saldo - 1 where id_abono = v_id_abono;
     update eventos set asientos_disponibles = asientos_disponibles - 1 where id_evento = v_id_evento;
     
-    -- Insartamos la reserva en al tabla.
+    -- Insertamos la reserva en la tabla.
     insert into reservas (id_reserva, cliente, evento, abono, fecha)
     values (seq_reservas.nextval, arg_NIF_cliente, v_id_evento, v_id_abono, arg_fecha);
 
-    commit; -- Se liberan todas las fila bloqueadas y sa guarda el cabio
+    commit; -- Se liberan todas las fila bloqueadas y se guardan los cambios
 end;
 /
 
