@@ -103,15 +103,39 @@ end;
 
 ------ Deja aquí tus respuestas a las preguntas del enunciado:
 -- * P4.1 
---
+-- No tendría porque mantenerse la consistencia debido a que pueden haber condiciones de correra entre varios usuarios, para ellos hemos implementado
+-- una estrategia defensiva utilizando Select for Update para bloquear el evento para evitar estas condiciones. Por lo que se debería manatener la 
+-- consistencia
 -- * P4.2 
---
+-- No debido a que al utiizar select for update bloquea que otros procesos concurrentemente hagan otra select for update, por lo que si concurrentemente
+-- otro usuario todavia no ha insertado su reserva no se podra hacer una select for update y por lo tanto no habrá problemas dado que esperara a que
+-- acabe la transción.
 -- * P4.3
---
+-- Hemos utilizado una estrategia de programación defensiva al comprobar con una select for update antes de hacer ninguna inserción, y nosotros lanzar la excepción
+-- antes de que el programa la lanze cuando ocurre un error, así evitamos condiciones de carrera y mantenemos la consistencia de los datos.
 -- * P4.4
---
+-- Se puede ver en los select for update y las condiciones de después donde comprobamos primero si ocurre algún error y lanzamos la excepción, no 
+-- esperamos a que surjan los errores al insertarlo siempre comprobamos antes.
 -- * P4.5
--- 
+-- Nosotros hemos utilizado select for update provocando bloqueos, una estrategia defensiva,  la hemos considerado la mejor opción porque el tiempo que va a tardar en ejecutarse
+-- va a ser mínimo (dado que ejectar todos los test tarda 0.071s) y mantenemos la consistencia. Hemos considerado que cuando un usuario llama a la función tiene ya
+-- decidido como quiere hacer la reserva, por lo que al tenerlo claro no debería tardar mas que el tiempo de ejecutar la función.
+-- Por otro lado se podría haber utilizado una estrategia mas agresiva.
+-- Nosotros se nos ocurre mantener nuestro programa similar, eliminando los select for update por select sin mas, haciendo las comprobaciones necesarias antes de insertar
+-- pero a la hora de insertar añadiriamos nuevas excepciónes por si varios usuarios concurrentemente interfieren con la misma reserva, y tienen un errores como no complir
+-- la condición de saldo positivo que hay en la creación de la tabla abonos check (saldo>=0)  o dup_val_on_index. También añadiriamos en la tabla de eventos un 
+-- check (asientos_disponibles>=0) para comprobar también que haya asientos disponibles a la hora de hacer la inserción. 
+-- Aun así cremos que mientras se restan los asientos disponibles creemos que puede haber algún estado inconsistente, por lo que hemos preferido utlizar una estrategia defensiva
+--Procedimiento reservar_evento(arg_NIF_cliente, arg_nombre_evento, arg_fecha):
+--    1. Consultar y validar la existencia del cliente y su saldo.
+--    2. Consultar y validar la existencia del evento, la fecha y los asientos disponibles.
+--    3. Si el saldo es suficiente y hay asientos disponibles, proceder:
+--       a. Actualizar el saldo en la tabla abonos.
+--       b. Actualizar los asientos disponibles en la tabla eventos.
+--       c. Intentar insertar la nueva reserva en la tabla reservas.
+--    4. Manejar posibles excepciones de conflicto.
+--    5. Si ocurre cualquier excepción, realizar rollback.
+--    6. Si todo es exitoso, confirmar los cambios con commit.
 
 create or replace
 procedure reset_seq( p_seq_name varchar )
